@@ -122,6 +122,8 @@ class SyncReplicasMaster_NN(NN_Trainer):
         self._eval_batch_size = 1000
 
     def build_model(self, num_classes=10):
+        # TODO: Check with Hongyi 
+        # what is the story of this recursion
         self.network = build_model(self.network_config, num_classes)
         self.optimizer = SGD(self.network.parameters(), lr=self.lr, momentum=self.momentum)
         # assign a gradient accumulator to collect gradients from workers
@@ -145,7 +147,13 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
             logger.info("Master node is entering step: {}".format(i))
 
+            # Line seems some kind of test to see if we still have access to
+            # all the test cases
+            #TODO: Check with Hongyi
+            # to me it seems some kind of ping for the slaves asking them to
+            # say Hi !!
             self.async_bcast_step()
+            
 
             # bcast weights to workers
             self.async_bcast_layer_weights_bcast()
@@ -212,15 +220,27 @@ class SyncReplicasMaster_NN(NN_Trainer):
             if i != 0:
                 req_list.append(self.comm.isend(self.cur_step, dest=i, tag=10))
         for i in range(len(req_list)):
+            # seems like you add object and wait for the result to come back
+            # one by one
             req_list[i].wait()
 
     def async_bcast_layer_weights_bcast(self):
         request_layers = []
         for layer_idx, layer in enumerate(self.network.parameters()):
             request_workers = []
+            # TODO: Check with hongyi 
+            # What are these
             layer_to_send = layer.detach().numpy().astype(np.float64)
             # try to see if collective communication is better here:
             msg_send = w_compress(layer_to_send)
+            # TODO: Check with hongyi why shouldn't we use Bcast
+            # My understanding is that we might be able to send the array's
+            # directly instead of doing loss less compression 
+            # This should be faster also since if we use bcast it actually does
+            # a pickle and pickle is super slow for large objects and has a
+            # limit of 3Gigs if i remember correct.
+            # Also note for future use pickle only if there is no other
+            # solution
             self.comm.bcast(msg_send, root=0)
 
     def async_fetch_gradient_start(self):
