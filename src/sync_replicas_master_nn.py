@@ -124,6 +124,8 @@ class SyncReplicasMaster_NN(NN_Trainer):
     def build_model(self, num_classes=10):
         # TODO: Check with Hongyi 
         # what is the story of this recursion
+        # got this from util.py
+        # change the name
         self.network = build_model(self.network_config, num_classes)
         self.optimizer = SGD(self.network.parameters(), lr=self.lr, momentum=self.momentum)
         # assign a gradient accumulator to collect gradients from workers
@@ -152,6 +154,8 @@ class SyncReplicasMaster_NN(NN_Trainer):
             #TODO: Check with Hongyi
             # to me it seems some kind of ping for the slaves asking them to
             # say Hi !!
+
+            # this is sending the broadcast of current step
             self.async_bcast_step()
             
 
@@ -169,7 +173,7 @@ class SyncReplicasMaster_NN(NN_Trainer):
                 elif self._compress_grad == "compress":
                     _, received_msg=MPI.Request.waitany(requests=gradient_fetch_requests, status=status)
                     received_grad=g_decompress(received_msg)
-
+                # What are these tag's 
                 if status.tag-88 in self.grad_accumulator.model_index_range:
                     if not self._first_grad_received:
                         self._first_grad_received=True
@@ -229,9 +233,10 @@ class SyncReplicasMaster_NN(NN_Trainer):
         for layer_idx, layer in enumerate(self.network.parameters()):
             request_workers = []
             # TODO: Check with hongyi 
-            # What are these
+            # What are these the request_layers and request_workers
             layer_to_send = layer.detach().numpy().astype(np.float64)
             # try to see if collective communication is better here:
+            # Make use of compression tag
             msg_send = w_compress(layer_to_send)
             # TODO: Check with hongyi why shouldn't we use Bcast
             # My understanding is that we might be able to send the array's
@@ -249,6 +254,11 @@ class SyncReplicasMaster_NN(NN_Trainer):
         for layer_idx, layer in enumerate(self.network.parameters()):
             for k in range(self._num_grad_to_collect):
                 if self._compress_grad == 'compress':
+                    #TODO: ask Hongyi what is this tag story with all that
+                    # Also there doesn't seem to be any qsgd involved 
+                    # what is 
+                    # TODO: Mention the compression ratio find out how much
+                    # compresssion is happening
                     req = self.comm.irecv(self.grad_accumulator.gradient_aggregator[layer_idx][k], source=k+1, tag=88+layer_idx)
                 else:
                     req = self.comm.Irecv([self.grad_accumulator.gradient_aggregator[layer_idx][k], MPI.DOUBLE], source=k+1, tag=88+layer_idx)
