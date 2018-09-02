@@ -107,6 +107,7 @@ if __name__ == "__main__":
                 'device':device}
 
     if rank == 0:
+        create_data_csv('ps_node_data.csv', 'ps')
         master_fc_nn = SyncReplicasMaster_NN(comm=comm, **kwargs_master)
         if args.dataset == 'Cifar100':
             master_fc_nn.build_model(num_classes=100)
@@ -116,6 +117,7 @@ if __name__ == "__main__":
         master_fc_nn.start()
         print("Done sending messages to workers!")
     else:
+        create_data_csv('worker_node_data.csv', 'worker')
         worker_fc_nn = DistributedWorker(comm=comm, **kwargs_worker)
         if args.dataset == 'Cifar100':
             worker_fc_nn.build_model(num_classes=100)
