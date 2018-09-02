@@ -4,6 +4,10 @@ import copy
 from sys import getsizeof
 import logging
 
+from pympler import asizeof
+import csv
+import uuid
+
 from mpi4py import MPI
 import numpy as np
 
@@ -20,6 +24,38 @@ STEP_START_ = 1
 logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+exp_identifier = uuid.uuid1()
+# The few things saurabh is going to do are 
+# outrightly blasmephous but he inherited this code and he is on a deadline
+# He requests people who are going to deal with this code to treat him with
+# mercy
+
+def create_data_csv(out_file_name, collector_mode):
+    """
+    set's up the csv to dump data from experiments. 
+    
+    out_file_name: name of csv file on which data will be dumped
+    collector_mode: whether this is node or ps
+    """
+    if collector_mode == 'ps':
+        field_name = ['exp_identifier', 'iteration_number', 'layer_name', 
+                      'compression_param','gradient_size_recieved', 
+                      'gradient_size_processed' ]
+    if collector_mode == 'worker':
+        field_name = ['exp_identifier', 'layer_name', 'compression_param',
+                      'gradient_size_generated', 'gradient_size_processed', 
+                      'weight_size_received', 'weight_size_sent']
+
+
+    out_file_path = os.path.join('/home/ubuntu', out_file_name)
+    with open(out_file_path, 'a') as f_out:
+        writer = csv.DictWriter(f_out, fieldnames= field_name)
+        writer.writeheader()
+
+    
+
+
 
 def update_params_dist_version(param, avg_grad, learning_rate):
     '''
@@ -142,6 +178,9 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
         # fake test here:
         for i in range(1, self._max_steps+1):
+            data_dict = dict()
+            data_dict['exp_identifier'] = exp_identifier
+            data_dict['compression_param'] = self._compress_grad
             # switch back to training mode
             self.network.train()
             self._first_grad_received = False
@@ -149,8 +188,6 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
             logger.info("Master node is entering step: {}".format(i))
 
-            # Line seems some kind of test to see if we still have access to
-            # all the test cases
             #TODO: Check with Hongyi
             # to me it seems some kind of ping for the slaves asking them to
             # say Hi !!
@@ -171,9 +208,19 @@ class SyncReplicasMaster_NN(NN_Trainer):
                 if self._compress_grad == "None":
                     MPI.Request.Waitany(requests=gradient_fetch_requests, status=status)
                 elif self._compress_grad == "compress":
-                    _, received_msg=MPI.Request.waitany(requests=gradient_fetch_requests, status=status)
+                    _, received_msg=MPI.Request.waitany(requests=gradient_fetch_requests, 
+                                                        status=status)
+                    
+                    size_of_recieved_grad = asizeof.asizeof(received_msg)
+                    data_dict['gradient_size_recieved'] = size_of_recieved_grad
+
                     received_grad=g_decompress(received_msg)
-                # What are these tag's 
+                # What are these tag's
+                # I still don't understand pieces of code here
+                # But again I am on tight deadline and I am assuming that this
+                # works I will use it. 
+                # Especially I don't understand the part the case when there is
+                # no compression
                 if status.tag-88 in self.grad_accumulator.model_index_range:
                     if not self._first_grad_received:
                         self._first_grad_received=True
@@ -182,12 +229,33 @@ class SyncReplicasMaster_NN(NN_Trainer):
                     layer_index = status.tag-88
                     if self._compress_grad == "None":
                         received_grad=self.grad_accumulator.gradient_aggregator[layer_index][status.source-1]
+                        data_dict['gradient_size_recieved'] = asizeof.asizeof(
+                            received_grad)
                     
                     # do gradient shape check here
+                    data_dict['layer_name'] = layer_index
+                    data_dict['gradient_size_processed'] = asizeof.asizeof(
+                        received_grad)
+                    with open('ps_node_data.csv', 'a') as data_out:
+
+                        field_name = ['exp_identifier', 'iteration_number', 'layer_name', 
+                                      'compression_param','gradient_size_recieved', 
+                                      'gradient_size_processed']
+                        writer = csv.DictWriter(data_out,
+                                                fieldnames=field_name)
+                        writer.writerow(data_dict)
+                        # just to be safe, resetting the dict
+                        data_dict = dict()
+                        
+                        
+
+
                     assert (received_grad.shape == self._model_shapes[layer_index])
 
                     # aggregate the gradient
                     ############################ only for temp test ###################################
+                    # TODO: What is this ? , self._expected_grad is some kill
+                    # number. Hongyi HELP !!!!
                     if self.grad_accumulator.gradient_aggregate_counter[layer_index] <= self._expected_grad_to_recv:
                         self.aggregate_gradient(gradient=received_grad, layer_idx=layer_index)
 
