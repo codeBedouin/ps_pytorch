@@ -22,6 +22,29 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+def create_data_csv(out_file_name, collector_mode):
+    """
+    set's up the csv to dump data from experiments. 
+    
+    out_file_name: name of csv file on which data will be dumped
+    collector_mode: whether this is node or ps
+    """
+    if collector_mode == 'ps':
+        field_name = ['exp_identifier', 'layer_name', 'compression_param',
+                      'gradient_size_recieved', 'gradient_size_processed',
+                      'weight_size_generated', 'weight_size_sent']
+    if collector_mode == 'node':
+        field_name = ['exp_identifier', 'layer_name', 'compression_param',
+                      'gradient_size_generated', 'gradient_size_processed', 
+                      'weight_size_received', 'weight_size_sent']
+
+
+    out_file_path = os.path.join('/home/ubuntu', out_file_name)
+    with open(out_file_path, 'a') as f_out:
+        writer = csv.DictWriter(f_out, fieldnames= out_file_path)
+        writer.writeheader()
+
+
 
 def accuracy(output, target, topk=(1,)):
     """Computes the precision@k for the specified values of k"""
