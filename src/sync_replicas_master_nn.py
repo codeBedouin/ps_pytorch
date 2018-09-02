@@ -232,12 +232,15 @@ class SyncReplicasMaster_NN(NN_Trainer):
         request_layers = []
         for layer_idx, layer in enumerate(self.network.parameters()):
             request_workers = []
-            # TODO: Check with hongyi 
+            # TODO: Check with hongyi
             # What are these the request_layers and request_workers
+            # TODO: The async broadcast in the worker nodes used float32 why
+            # does this one use float642
             layer_to_send = layer.detach().numpy().astype(np.float64)
             # try to see if collective communication is better here:
             # Make use of compression tag
-            msg_send = w_compress(layer_to_send)
+            if self._compress_grad == 'compress':
+                msg_send = w_compress(layer_to_send)
             # TODO: Check with hongyi why shouldn't we use Bcast
             # My understanding is that we might be able to send the array's
             # directly instead of doing loss less compression 
@@ -246,7 +249,11 @@ class SyncReplicasMaster_NN(NN_Trainer):
             # limit of 3Gigs if i remember correct.
             # Also note for future use pickle only if there is no other
             # solution
-            self.comm.bcast(msg_send, root=0)
+            # DONE: Seems like this was bug, irrespective of the compress flag
+            # there was compression being done
+                self.comm.bcast(msg_send, root=0)
+            else:
+                self.comm.Bcast(layer_to_send, root=0)
 
     def async_fetch_gradient_start(self):
         '''make gradient fetch requests and return the request list'''
