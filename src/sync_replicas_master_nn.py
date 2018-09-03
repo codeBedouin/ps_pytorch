@@ -178,9 +178,6 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
         # fake test here:
         for i in range(1, self._max_steps+1):
-            data_dict = dict()
-            data_dict['exp_identifier'] = exp_identifier
-            data_dict['compression_param'] = self._compress_grad
             # switch back to training mode
             self.network.train()
             self._first_grad_received = False
@@ -204,6 +201,9 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
             # wait for enough gradients to be aggregated:
             while not enough_gradients_received:
+                data_dict = dict()
+                data_dict['exp_identifier'] = exp_identifier
+                data_dict['compression_param'] = self._compress_grad
                 status = MPI.Status()
                 if self._compress_grad == "None":
                     MPI.Request.Waitany(requests=gradient_fetch_requests, status=status)
@@ -234,18 +234,9 @@ class SyncReplicasMaster_NN(NN_Trainer):
                     
                     # do gradient shape check here
                     data_dict['layer_name'] = layer_index
+                    print ('The layer name is {}'.format(layer_index))
                     data_dict['gradient_size_processed'] = asizeof.asizeof(
                         received_grad)
-                    with open('ps_node_data.csv', 'a') as data_out:
-
-                        field_name = ['exp_identifier', 'iteration_number', 'layer_name', 
-                                      'compression_param','gradient_size_recieved', 
-                                      'gradient_size_processed']
-                        writer = csv.DictWriter(data_out,
-                                                fieldnames=field_name)
-                        writer.writerow(data_dict)
-                        # just to be safe, resetting the dict
-                        data_dict = dict()
                         
                         
 
@@ -262,6 +253,18 @@ class SyncReplicasMaster_NN(NN_Trainer):
                     self.grad_accumulator.gradient_aggregate_counter[layer_index] += 1
                 
                 enough_gradients_received = True
+                with open('/home/ubuntu/ps_node_data.csv', 'a') as data_out:
+
+                    field_name = ['exp_identifier', 'iteration_number', 'layer_name', 
+                                  'compression_param','gradient_size_recieved', 
+                                  'gradient_size_processed']
+                    writer = csv.DictWriter(data_out,
+                                            fieldnames=field_name)
+
+                    writer.writerow(data_dict)
+                    # just to be safe, resetting the dict
+                    data_dict = dict()
+                
                 for j in self.grad_accumulator.gradient_aggregate_counter:
                     enough_gradients_received = enough_gradients_received and (j >= self._num_grad_to_collect)
             grad_gather_duration = time.time()-grad_gather_start_time
