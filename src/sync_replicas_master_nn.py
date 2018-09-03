@@ -1,6 +1,7 @@
 from __future__ import print_function
 import time
 import copy
+import os
 from sys import getsizeof
 import logging
 
@@ -232,15 +233,16 @@ class SyncReplicasMaster_NN(NN_Trainer):
                         data_dict['gradient_size_recieved'] = asizeof.asizeof(
                             received_grad)
                     
-                    # do gradient shape check here
                     data_dict['layer_name'] = layer_index
+                    data_dict['iteration_number'] = i
                     print ('The layer name is {}'.format(layer_index))
                     data_dict['gradient_size_processed'] = asizeof.asizeof(
                         received_grad)
                         
                         
 
-
+                    
+                    # do gradient shape check here
                     assert (received_grad.shape == self._model_shapes[layer_index])
 
                     # aggregate the gradient
@@ -263,7 +265,6 @@ class SyncReplicasMaster_NN(NN_Trainer):
 
                     writer.writerow(data_dict)
                     # just to be safe, resetting the dict
-                    data_dict = dict()
                 
                 for j in self.grad_accumulator.gradient_aggregate_counter:
                     enough_gradients_received = enough_gradients_received and (j >= self._num_grad_to_collect)
