@@ -246,8 +246,13 @@ class DistributedWorker(NN_Trainer):
         for layer_idx, layer in enumerate(self.model_recv_buf.recv_buf):
             if self.model_recv_buf.layer_cur_step[layer_idx] < self.cur_step:
                 layers_to_update.append(layer_idx)
-                weights_recv=self.comm.bcast(self.model_recv_buf.recv_buf[layer_idx], root=0)
-                weights = w_decompress(weights_recv)
+                if self._compress_grad == 'compress':
+                    weights_recv=self.comm.bcast(self.model_recv_buf.recv_buf[layer_idx], root=0)
+                    weights = w_decompress(weights_recv)
+                else:
+                    weights_recv = self.comm.Bcast(
+                        self.model_recv_buf.recv_buf[layer_idx], root=0)
+                    weights = weights_recv
                 weights_to_update.append(weights)
                 self.model_recv_buf.layer_cur_step[layer_idx] = self.cur_step
         self.model_update(weights_to_update)
