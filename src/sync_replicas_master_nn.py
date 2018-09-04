@@ -211,11 +211,15 @@ class SyncReplicasMaster_NN(NN_Trainer):
                 elif self._compress_grad == "compress":
                     _, received_msg=MPI.Request.waitany(requests=gradient_fetch_requests, 
                                                         status=status)
+                    print ("type of compressed messaged {}".format(type(received_msg)))
+                    print (" len of string {}".format(len(received_msg))) 
                     
                     size_of_recieved_grad = asizeof.asizeof(received_msg)
                     data_dict['gradient_size_recieved'] = size_of_recieved_grad
 
                     received_grad=g_decompress(received_msg)
+                    print ("type of decompressed msg {}".format(type(received_grad)))
+                    print ("num bytes in decompress array {}".format(received_grad.nbytes))
                 # What are these tag's
                 # I still don't understand pieces of code here
                 # But again I am on tight deadline and I am assuming that this
@@ -232,6 +236,9 @@ class SyncReplicasMaster_NN(NN_Trainer):
                         received_grad=self.grad_accumulator.gradient_aggregator[layer_index][status.source-1]
                         data_dict['gradient_size_recieved'] = asizeof.asizeof(
                             received_grad)
+                        print("Gradient data type {}".format(type(received_grad)))
+                        print ("Number of bytes {}".format(received_grad.nbytes))
+                        print ("Size of gradient received {}".format(asizeof.asizeof(received_grad)))
                     
                     data_dict['layer_name'] = layer_index
                     data_dict['iteration_number'] = i
@@ -308,7 +315,8 @@ class SyncReplicasMaster_NN(NN_Trainer):
             # What are these the request_layers and request_workers
             # TODO: The async broadcast in the worker nodes used float32 why
             # does this one use float642
-            layer_to_send = layer.detach().numpy().astype(np.float64)
+            # Done this is supposed to be float32
+            layer_to_send = layer.detach().numpy().astype(np.float32)
             # try to see if collective communication is better here:
             # Make use of compression tag
             if self._compress_grad == 'compress':
@@ -325,7 +333,7 @@ class SyncReplicasMaster_NN(NN_Trainer):
             # there was compression being done
                 self.comm.bcast(msg_send, root=0)
             else:
-                self.comm.Bcast(layer_to_send, root=0)
+                self.comm.bcast(layer_to_send, root=0)
 
     def async_fetch_gradient_start(self):
         '''make gradient fetch requests and return the request list'''
