@@ -250,7 +250,7 @@ class DistributedWorker(NN_Trainer):
                     weights_recv=self.comm.bcast(self.model_recv_buf.recv_buf[layer_idx], root=0)
                     weights = w_decompress(weights_recv)
                 else:
-                    weights_recv = self.comm.Bcast(
+                    weights_recv = self.comm.bcast(
                         self.model_recv_buf.recv_buf[layer_idx], root=0)
                     weights = weights_recv
                 weights_to_update.append(weights)
