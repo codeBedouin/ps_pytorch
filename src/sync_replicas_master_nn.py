@@ -213,13 +213,16 @@ class SyncReplicasMaster_NN(NN_Trainer):
                                                         status=status)
                     print ("type of compressed messaged {}".format(type(received_msg)))
                     print (" len of string {}".format(len(received_msg))) 
-                    
+                    print ("num bytes in utf-8 {}".format(
+                        len(received_msg.encode('utf-8'))))
                     size_of_recieved_grad = asizeof.asizeof(received_msg)
                     data_dict['gradient_size_recieved'] = size_of_recieved_grad
 
                     received_grad=g_decompress(received_msg)
                     print ("type of decompressed msg {}".format(type(received_grad)))
                     print ("num bytes in decompress array {}".format(received_grad.nbytes))
+                    print ("bytes calculated by pympler {}".format(
+                        size_of_recieved_grad))
                 # What are these tag's
                 # I still don't understand pieces of code here
                 # But again I am on tight deadline and I am assuming that this
